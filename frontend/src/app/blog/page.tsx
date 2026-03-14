@@ -22,24 +22,36 @@ const GET_POSTS_QUERY = `
 `;
 
 async function fetchPosts() {
-  // Use the environment variable for the API endpoint
-  const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL as string, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: GET_POSTS_QUERY }),
-    // ISR: Revalidate the cache every 60 seconds
-    next: { revalidate: 60 },
-  });
+  try {
+    // Check if the environment variable is actually defined
+    if (!process.env.NEXT_PUBLIC_WORDPRESS_API_URL) {
+      console.warn("WARNING: NEXT_PUBLIC_WORDPRESS_API_URL is missing. Returning empty blog feed.");
+      return [];
+    }
 
-  if (!res.ok) {
-    throw new Error('Failed to fetch WordPress API');
-  }
+    const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: GET_POSTS_QUERY }),
+      next: { revalidate: 60 },
+    });
 
-  const json = await res.json();
-  if (json.errors) {
-    throw new Error('GraphQL Errors: ' + JSON.stringify(json.errors));
+    if (!res.ok) {
+      console.error('Failed to fetch WordPress API:', res.statusText);
+      return [];
+    }
+
+    const json = await res.json();
+    if (json.errors) {
+      console.error('GraphQL Errors:', json.errors);
+      return [];
+    }
+    
+    return json.data?.posts?.nodes || [];
+  } catch (error) {
+    console.error("FetchPosts execution error:", error);
+    return [];
   }
-  return json.data.posts.nodes;
 }
 
 export default async function BlogFeed() {

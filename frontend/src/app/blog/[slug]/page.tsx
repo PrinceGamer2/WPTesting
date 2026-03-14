@@ -33,36 +33,59 @@ const GET_POST_BY_SLUG_QUERY = `
 `;
 
 export async function generateStaticParams() {
-  const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL as string, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: GET_ALL_SLUGS_QUERY }),
-  });
+  try {
+    if (!process.env.NEXT_PUBLIC_WORDPRESS_API_URL) {
+      console.warn("WARNING: API URL missing during build. Skipping static param generation.");
+      return [];
+    }
 
-  const json = await res.json();
-  const nodes = json?.data?.posts?.nodes || [];
-  
-  return nodes.map((node: { slug: string }) => ({
-    slug: node.slug,
-  }));
+    const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: GET_ALL_SLUGS_QUERY }),
+    });
+
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const nodes = json?.data?.posts?.nodes || [];
+    
+    return nodes.map((node: { slug: string }) => ({
+      slug: node.slug,
+    }));
+  } catch (err) {
+    console.error("Error generating static blog params:", err);
+    return [];
+  }
 }
 
 async function fetchPost(slug: string) {
-  const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL as string, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: GET_POST_BY_SLUG_QUERY,
-      variables: {
-        id: slug,
-        idType: 'SLUG',
-      },
-    }),
-    next: { revalidate: 60 },
-  });
+  try {
+    if (!process.env.NEXT_PUBLIC_WORDPRESS_API_URL) {
+      return null;
+    }
 
-  const json = await res.json();
-  return json?.data?.post || null;
+    const res = await fetch(process.env.NEXT_PUBLIC_WORDPRESS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: GET_POST_BY_SLUG_QUERY,
+        variables: {
+          id: slug,
+          idType: 'SLUG',
+        },
+      }),
+      next: { revalidate: 60 },
+    });
+
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    return json?.data?.post || null;
+  } catch (err) {
+    console.error("Error fetching single post:", err);
+    return null;
+  }
 }
 
 export default async function BlogPost(
